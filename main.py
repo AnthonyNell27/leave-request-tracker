@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from fastapi.middleware.cors import CORSMiddleware
+
 from database import get_db
 from models import Employee, LeaveRequest, LeaveStatus
 from schemas import (
@@ -12,6 +14,13 @@ from schemas import (
 
 app = FastAPI()
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
