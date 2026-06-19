@@ -16,12 +16,20 @@ type LeaveRequest = {
 export default function Home() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
 
-  useEffect(() => {
-    fetch("http://localhost:8000/leave-requests")
-      .then((res) => res.json())
-      .then((data) => setRequests(data));
-  }, []);
+  const loadRequests = () => {
+  fetch("http://localhost:8000/leave-requests")
+    .then((res) => res.json())
+    .then((data) => setRequests(data));
+  };
 
+  const submitRequest = (id: number) => {
+  fetch(`http://localhost:8000/leave-requests/${id}/submit`, { method: "POST" })
+    .then(() => loadRequests());
+  };
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
 
 
   const statusColors: Record<string, string> = {
@@ -46,6 +54,7 @@ export default function Home() {
               {r.status}
               </span>
             </p>
+          <button onClick={() => submitRequest(r.id)}>Submit</button>
        </div>
       ))}
     </main>
