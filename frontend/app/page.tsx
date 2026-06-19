@@ -22,9 +22,18 @@ export default function Home() {
     .then((data) => setRequests(data));
   };
 
-  const submitRequest = (id: number) => {
-  fetch(`http://localhost:8000/leave-requests/${id}/submit`, { method: "POST" })
-    .then(() => loadRequests());
+  const doAction = async (id: number, action: string) => {
+  const res = await fetch(`http://localhost:8000/leave-requests/${id}/${action}`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    alert(error.detail);
+    return;
+  }
+
+  loadRequests();
   };
 
   useEffect(() => {
@@ -54,7 +63,10 @@ export default function Home() {
               {r.status}
               </span>
             </p>
-          <button onClick={() => submitRequest(r.id)}>Submit</button>
+          <button onClick={() => doAction(r.id, "submit")}>Submit</button>
+          <button onClick={() => doAction(r.id, "approve")}>Approve</button>
+          <button onClick={() => doAction(r.id, "reject")}>Reject</button>
+          <button onClick={() => doAction(r.id, "cancel")}>Cancel</button>
        </div>
       ))}
     </main>
