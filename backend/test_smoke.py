@@ -1,4 +1,6 @@
 from fastapi.testclient import TestClient
+import pytest
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -20,11 +22,6 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # 3. Build the tables inside the test database
 Base.metadata.create_all(bind=engine)
 
-# Seed one employee so create tests have a valid employee_id (the test DB starts empty)
-seed_db = TestingSessionLocal()
-seed_db.add(models.Employee(name="Test Employee"))
-seed_db.commit()
-seed_db.close()
 
 # 4. Make the app use the test DB instead of the real one
 def override_get_db():
@@ -38,6 +35,17 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
+
+@pytest.fixture(autouse=True)
+def reset_database():
+    """Give each test a fresh, empty DB with one seeded employee."""
+    Base.metadata.drop_all(bind=engine)    # wipe everything
+    Base.metadata.create_all(bind=engine)  # rebuild empty tables
+    db = TestingSessionLocal()
+    db.add(models.Employee(name="Test Employee"))  # re-seed employee id 1
+    db.commit()
+    db.close()
+    yield   # ← the test runs at this point
 
 
 def test_list_employees():
