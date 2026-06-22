@@ -403,3 +403,62 @@ def test_skip_and_limit_together():
         })
     response = client.get("/leave-requests", params={"skip": 1, "limit": 1})
     assert len(response.json()) == 1      # skip the first, then take only 1
+
+# TRANSITION GUARD — submit a non-draft (409)
+def test_submit_non_draft_returns_409():
+    """Submitting a request that's already SUBMITTED returns 409."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-10", "end_date": "2026-07-12",
+        "reason": "Trip",   # reason present so the FIRST submit succeeds
+    })
+    request_id = create.json()["id"]
+    client.post(f"/leave-requests/{request_id}/submit")             # DRAFT -> SUBMITTED (legal)
+    response = client.post(f"/leave-requests/{request_id}/submit")  # submit again (illegal)
+    assert response.status_code == 409
+
+
+# TRANSITION GUARD — reject a non-submitted (409)
+def test_reject_non_submitted_returns_409():
+    """Rejecting a request that's still a DRAFT returns 409."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-10", "end_date": "2026-07-12",
+        "reason": "Trip",
+    })
+    request_id = create.json()["id"]
+    # don't submit — reject while still DRAFT (reject is only legal from SUBMITTED)
+    response = client.post(f"/leave-requests/{request_id}/reject")
+    assert response.status_code == 409
+
+
+# EDGE CASE — PATCH a missing id (404)
+def test_patch_missing_id_returns_404():
+    """PATCHing a request id that doesn't exist returns 404."""
+    response = client.patch("/leave-requests/999", json={"reason": "x"})
+    assert response.status_code == 404
+
+
+# HAPPY TRANSITION — cancel a submitted request (200 / CANCELLED)
+def test_cancel_submitted_returns_200():
+    """Cancelling a SUBMITTED request returns 200 and status CANCELLED."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-10", "end_date": "2026-07-12",
+        "reason": "Trip",
+    })
+    request_id = create.json()["id"]
+    client.post(f"/leave-requests/{request_id}/submit")             # DRAFT -> SUBMITTED
+    response = client.post(f"/leave-requests/{request_id}/cancel")  # SUBMITTED -> CANCELLED
+    assert response.status_code == 200
+    assert response.json()["status"] == "CANCELLED"
+
+
+# CONTENT CHECK — /employees returns the seeded employee
+def test_employees_returns_seeded_employee():
+    """GET /employees returns the one employee the fixture seeds."""
+    response = client.get("/employees")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1                       # the fixture seeds exactly one
+    assert data[0]["name"] == "Test Employee"   # ...and it's this one
