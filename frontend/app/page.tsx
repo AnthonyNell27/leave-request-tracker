@@ -20,15 +20,25 @@ export default function Home() {
   // null = we're creating a new request. a number = we're editing the request with that id.
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // --- DATA LOADING: fetch = go ask the backend for data, then put it in a state box. ---
+  // holds the current filter choices. "" means "no filter / show all".
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterEmployee, setFilterEmployee] = useState("");
+
+  // --- DATA LOADING: fetch = ask the backend for data, then store it in a state box. ---
   const loadEmployees = () => {
     fetch("http://localhost:8000/employees")
-      .then((res) => res.json())        // turn the response into usable data
-      .then((data) => setEmployees(data)); // put that data in the employees box
+      .then((res) => res.json())            // turn the response into usable data
+      .then((data) => setEmployees(data));  // put it in the employees box
   };
 
   const loadRequests = () => {
-    fetch("http://localhost:8000/leave-requests")
+    // build the ?status=...&employee_id=... part from whatever filters are set.
+    // URLSearchParams handles the formatting/encoding for us.
+    const params = new URLSearchParams();
+    if (filterStatus) params.append("status", filterStatus);         // only add if a status is chosen
+    if (filterEmployee) params.append("employee_id", filterEmployee); // only add if an employee is chosen
+
+    fetch(`http://localhost:8000/leave-requests?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => setRequests(data));
   };
@@ -110,11 +120,16 @@ export default function Home() {
     resetForm();    // clear the form for the next entry
   };
 
-  // useEffect with [] = "run this once when the page first loads"
+  // load the employee list once when the page opens
   useEffect(() => {
-    loadRequests();
     loadEmployees();
   }, []);
+
+  // (re)load requests on first open AND whenever a filter changes.
+  // listing the filters here makes this re-run with the new values.
+  useEffect(() => {
+    loadRequests();
+  }, [filterStatus, filterEmployee]);
 
   // shared styling string so every input/select looks the same (write once, reuse)
   const fieldClass =
@@ -224,9 +239,41 @@ export default function Home() {
             >
               Cancel
             </button>
+            
           )}
         </div>
       </form>
+
+      {/* --- FILTERS: pick a value to narrow the list; changing one re-fetches automatically --- */}
+      <div className="mb-4 flex flex-wrap gap-3">
+        {/* filter by status */}
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className={fieldClass}
+        >
+          <option value="">All statuses</option>
+          <option value="DRAFT">Draft</option>
+          <option value="SUBMITTED">Submitted</option>
+          <option value="APPROVED">Approved</option>
+          <option value="REJECTED">Rejected</option>
+          <option value="CANCELLED">Cancelled</option>
+        </select>
+
+        {/* filter by employee — reuses the employees list you already fetched */}
+        <select
+          value={filterEmployee}
+          onChange={(e) => setFilterEmployee(e.target.value)}
+          className={fieldClass}
+        >
+          <option value="">All employees</option>
+          {employees.map((emp) => (
+            <option key={emp.id} value={emp.id}>
+              {emp.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* loop over the requests and show a card for each one */}
       <div className="space-y-3">
