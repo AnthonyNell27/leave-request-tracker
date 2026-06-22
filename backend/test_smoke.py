@@ -142,3 +142,55 @@ def test_overlapping_approval_returns_409():
 
     # B overlaps an already-APPROVED leave → the rule blocks it
     assert approve_b.status_code == 409   # 409 Conflict
+
+
+def test_submit_without_reason_returns_422():
+    """Submitting a request that has no reason returns 422."""
+    # create a draft with an EMPTY reason — allowed at create, but submit requires one
+    create = client.post("/leave-requests", json={
+        "employee_id": 1,
+        "leave_type": "Vacation",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-03",
+        "reason": "",
+    })
+    request_id = create.json()["id"]
+
+    # submit should be rejected because there's no reason
+    response = client.post(f"/leave-requests/{request_id}/submit")
+    assert response.status_code == 422
+
+def test_cancel_approved_returns_409():
+    """Cancelling a request that's already APPROVED returns 409."""
+    # create -> submit -> approve, so it ends up APPROVED
+    create = client.post("/leave-requests", json={
+        "employee_id": 1,
+        "leave_type": "Vacation",
+        "start_date": "2026-09-01",   # NOTE: away from the overlap test's 08-01..08-05
+        "end_date": "2026-09-03",
+        "reason": "Approved leave",
+    })
+    request_id = create.json()["id"]
+    client.post(f"/leave-requests/{request_id}/submit")    # DRAFT -> SUBMITTED
+    client.post(f"/leave-requests/{request_id}/approve")   # SUBMITTED -> APPROVED
+
+    # cancel is only legal from DRAFT/SUBMITTED, so an APPROVED one is rejected
+    response = client.post(f"/leave-requests/{request_id}/cancel")
+    assert response.status_code == 409
+
+def test_edit_non_draft_returns_409():
+    """Editing a request that's no longer a DRAFT returns 409."""
+    # create -> submit, so it's SUBMITTED (no longer editable)
+    create = client.post("/leave-requests", json={
+        "employee_id": 1,
+        "leave_type": "Vacation",
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-03",
+        "reason": "To submit",
+    })
+    request_id = create.json()["id"]
+    client.post(f"/leave-requests/{request_id}/submit")   # DRAFT -> SUBMITTED
+
+    # editing is only allowed on DRAFT, so a PATCH now should be rejected
+    response = client.patch(f"/leave-requests/{request_id}", json={"reason": "Changed reason"})
+    assert response.status_code == 409
