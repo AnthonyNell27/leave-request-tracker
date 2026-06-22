@@ -8,3 +8,5 @@ export type LeaveRequest = {
   status: string;
   number_of_days: number;
 };
+
+export type Employee = { id: number; name: string };
