@@ -19,6 +19,25 @@ const statusColors: Record<string, string> = {
   CANCELLED: "bg-yellow-200 text-yellow-800",
 };
 
+// Which actions are allowed for each status. This mirrors the backend's state rules,
+// so a card only offers buttons that would actually succeed.
+// (ASSUMPTION — verify these against the backend's main.py.)
+const actionsByStatus: Record<string, string[]> = {
+  DRAFT: ["submit", "cancel"],
+  SUBMITTED: ["approve", "reject", "cancel"],
+  APPROVED: ["cancel"],
+  REJECTED: [], // terminal — no actions
+  CANCELLED: [], // terminal — no actions
+};
+
+// The display text for each action name.
+const actionLabels: Record<string, string> = {
+  submit: "Submit",
+  approve: "Approve",
+  reject: "Reject",
+  cancel: "Cancel",
+};
+
 export default function LeaveRequestCard({ request, onAction, onEdit }: Props) {
   // styling for the small action buttons, written once and reused below
   const buttonClass =
@@ -59,20 +78,18 @@ export default function LeaveRequestCard({ request, onAction, onEdit }: Props) {
             Edit
           </button>
         )}
-        {/* each button calls onAction with this request's id and the action name. */}
-        {/* the parent (page.tsx) sends that to the backend and refreshes the list. */}
-        <button onClick={() => onAction(request.id, "submit")} className={buttonClass}>
-          Submit
-        </button>
-        <button onClick={() => onAction(request.id, "approve")} className={buttonClass}>
-          Approve
-        </button>
-        <button onClick={() => onAction(request.id, "reject")} className={buttonClass}>
-          Reject
-        </button>
-        <button onClick={() => onAction(request.id, "cancel")} className={buttonClass}>
-          Cancel
-        </button>
+        {/* each ALLOWED action becomes a button. the list comes from actionsByStatus above, */}
+        {/* so e.g. an APPROVED card shows only Cancel, and a REJECTED card shows none. */}
+        {/* "?? []" is a safety net: if some unknown status shows up, render no buttons instead of crashing. */}
+        {(actionsByStatus[request.status] ?? []).map((action) => (
+          <button
+            key={action}
+            onClick={() => onAction(request.id, action)}
+            className={buttonClass}
+          >
+            {actionLabels[action]}
+          </button>
+        ))}
       </div>
     </div>
   );
