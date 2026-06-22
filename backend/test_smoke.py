@@ -268,3 +268,92 @@ def test_edit_draft_returns_200():
     response = client.patch(f"/leave-requests/{request_id}", json={"reason": "Updated reason"})
     assert response.status_code == 200
     assert response.json()["reason"] == "Updated reason"   # confirm the change actually saved
+
+## GROUP-A
+
+def test_list_returns_created_requests():
+    """GET /leave-requests returns 200 and lists everything created."""
+    # fixture gives a fresh DB, so create exactly 2 and expect exactly 2 back
+    for _ in range(2):
+        client.post("/leave-requests", json={
+            "employee_id": 1, "leave_type": "Vacation",
+            "start_date": "2026-07-10", "end_date": "2026-07-12",
+            "reason": "Trip",
+        })
+    response = client.get("/leave-requests")
+    assert response.status_code == 200
+    data = response.json()        # this is a LIST of request dicts, not one object
+    assert len(data) == 2
+
+
+def test_filter_by_status():
+    """Filtering by status returns only requests with that status."""
+    # one stays DRAFT...
+    client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-10", "end_date": "2026-07-12",
+        "reason": "Draft one",
+    })
+    # ...the other gets submitted
+    submitted = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-20", "end_date": "2026-07-22",
+        "reason": "Submitted one",
+    })
+    client.post(f"/leave-requests/{submitted.json()['id']}/submit")
+
+    response = client.get("/leave-requests", params={"status": "DRAFT"})  # params -> ?status=DRAFT
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1                  # only the draft comes back
+    for r in data:                         # and every returned item really is DRAFT
+        assert r["status"] == "DRAFT"
+
+
+def test_filter_by_employee():
+    """Filtering by employee_id returns only that employee's requests."""
+    for _ in range(2):
+        client.post("/leave-requests", json={
+            "employee_id": 1, "leave_type": "Vacation",
+            "start_date": "2026-07-10", "end_date": "2026-07-12",
+            "reason": "Trip",
+        })
+    # employee 1 made both
+    res1 = client.get("/leave-requests", params={"employee_id": 1})
+    assert len(res1.json()) == 2
+    # employee 2 has none -> empty list (a filter miss is len 0, not a 404)
+    res2 = client.get("/leave-requests", params={"employee_id": 2})
+    assert len(res2.json()) == 0
+
+## GROUP B
+def test_edit_with_bad_dates_returns_422():
+    """PATCHing a draft so the end date is before the start returns 422."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-10", "end_date": "2026-07-12",
+        "reason": "Trip",
+    })
+    request_id = create.json()["id"]      # it's a DRAFT, so editing is allowed...
+    # ...but flip the dates to an invalid range -> the edit endpoint's own check rejects it
+    response = client.patch(f"/leave-requests/{request_id}", json={
+        "start_date": "2026-07-12",
+        "end_date": "2026-07-10",
+    })
+    assert response.status_code == 422
+
+
+def test_action_on_missing_id_returns_404():
+    """Acting on a request id that doesn't exist returns 404."""
+    response = client.post("/leave-requests/999/submit")   # no request #999 exists
+    assert response.status_code == 404
+
+
+def test_same_day_is_one_day():
+    """A request where start and end are the same date counts as 1 day."""
+    response = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-15", "end_date": "2026-07-15",  # same day
+        "reason": "Single day off",
+    })
+    assert response.status_code == 201
+    assert response.json()["number_of_days"] == 1   # inclusive count: one day = 1
