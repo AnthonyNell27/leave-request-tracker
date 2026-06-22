@@ -25,7 +25,7 @@ const statusColors: Record<string, string> = {
 const actionsByStatus: Record<string, string[]> = {
   DRAFT: ["submit", "cancel"],
   SUBMITTED: ["approve", "reject", "cancel"],
-  APPROVED: ["cancel"],
+  APPROVED: [],
   REJECTED: [], // terminal — no actions
   CANCELLED: [], // terminal — no actions
 };
