@@ -47,13 +47,13 @@ def reset_database():
     db.close()
     yield   # ← the test runs at this point
 
-
+# HEALTH CHECK — list employees
 def test_list_employees():
     """The /employees endpoint responds with 200 OK."""
     response = client.get("/employees")   # hit the employees endpoint your frontend uses
     assert response.status_code == 200    # 200 means "OK / success"
 
-
+# HAPPY PATH — create a valid request (201)
 def test_create_leave_request():
     """POSTing a valid request creates a DRAFT and returns 201."""
     response = client.post("/leave-requests", json={
@@ -68,6 +68,7 @@ def test_create_leave_request():
     assert data["status"] == "DRAFT"         # the server forces every new request to DRAFT
     assert data["number_of_days"] == 3       # 07-01 → 07-03 inclusive = 3 days
 
+# REJECTION — create for a missing employee (404)
 def test_create_for_nonexistent_employee():
     """Creating a request for an employee that doesn't exist returns 404."""
     response = client.post("/leave-requests", json={
@@ -79,6 +80,7 @@ def test_create_for_nonexistent_employee():
     })
     assert response.status_code == 404   # 404 = "that employee was not found"
 
+# TRANSITION GUARD — approve a draft (409)
 def test_approve_draft_returns_409():
     """Approving a request that's still a DRAFT returns 409."""
     # 1. create a draft
@@ -97,6 +99,7 @@ def test_approve_draft_returns_409():
     # 3. that's an illegal jump (approve is only legal from SUBMITTED) -> rejected
     assert response.status_code == 409   # 409 Conflict = "not allowed in this state"
 
+# VALIDATION — end date before start (422)
 def test_end_before_start_returns_422():
     """Creating a request with the end date before the start date returns 422."""
     response = client.post("/leave-requests", json={
@@ -108,7 +111,7 @@ def test_end_before_start_returns_422():
     })
     assert response.status_code == 422   # 422 = validation failed
 
-
+# VALIDATION — past start date (422)
 def test_past_start_date_returns_422():
     """Creating a request with a start date in the past returns 422."""
     response = client.post("/leave-requests", json={
@@ -120,7 +123,7 @@ def test_past_start_date_returns_422():
     })
     assert response.status_code == 422
 
-
+# BUSINESS RULE — overlapping approval, same employee (409)
 def test_overlapping_approval_returns_409():
     """Approving a leave that overlaps an already-approved one (same employee) returns 409."""
     # --- Request A: create -> submit -> approve, so it ends up APPROVED ---
@@ -151,7 +154,7 @@ def test_overlapping_approval_returns_409():
     # B overlaps an already-APPROVED leave → the rule blocks it
     assert approve_b.status_code == 409   # 409 Conflict
 
-
+# VALIDATION — submit without a reason (422)
 def test_submit_without_reason_returns_422():
     """Submitting a request that has no reason returns 422."""
     # create a draft with an EMPTY reason — allowed at create, but submit requires one
@@ -168,6 +171,7 @@ def test_submit_without_reason_returns_422():
     response = client.post(f"/leave-requests/{request_id}/submit")
     assert response.status_code == 422
 
+# TRANSITION GUARD — cancel an approved request (409)
 def test_cancel_approved_returns_409():
     """Cancelling a request that's already APPROVED returns 409."""
     # create -> submit -> approve, so it ends up APPROVED
@@ -186,6 +190,7 @@ def test_cancel_approved_returns_409():
     response = client.post(f"/leave-requests/{request_id}/cancel")
     assert response.status_code == 409
 
+# TRANSITION GUARD — edit a non-draft (409)
 def test_edit_non_draft_returns_409():
     """Editing a request that's no longer a DRAFT returns 409."""
     # create -> submit, so it's SUBMITTED (no longer editable)
@@ -203,6 +208,7 @@ def test_edit_non_draft_returns_409():
     response = client.patch(f"/leave-requests/{request_id}", json={"reason": "Changed reason"})
     assert response.status_code == 409
 
+# HAPPY TRANSITION — submit a draft (200 / SUBMITTED)
 def test_submit_draft_returns_200():
     """Submitting a draft that has a reason returns 200 and status SUBMITTED."""
     create = client.post("/leave-requests", json={
@@ -215,7 +221,7 @@ def test_submit_draft_returns_200():
     assert response.status_code == 200
     assert response.json()["status"] == "SUBMITTED"
 
-
+# HAPPY TRANSITION — approve a submitted request (200 / APPROVED)
 def test_approve_submitted_returns_200():
     """Approving a submitted request returns 200 and status APPROVED."""
     create = client.post("/leave-requests", json={
@@ -229,7 +235,7 @@ def test_approve_submitted_returns_200():
     assert response.status_code == 200
     assert response.json()["status"] == "APPROVED"
 
-
+# HAPPY TRANSITION — reject a submitted request (200 / REJECTED)
 def test_reject_submitted_returns_200():
     """Rejecting a submitted request returns 200 and status REJECTED."""
     create = client.post("/leave-requests", json={
@@ -243,7 +249,7 @@ def test_reject_submitted_returns_200():
     assert response.status_code == 200
     assert response.json()["status"] == "REJECTED"
 
-
+# HAPPY TRANSITION — cancel a draft (200 / CANCELLED)
 def test_cancel_draft_returns_200():
     """Cancelling a draft returns 200 and status CANCELLED."""
     create = client.post("/leave-requests", json={
@@ -256,7 +262,7 @@ def test_cancel_draft_returns_200():
     assert response.status_code == 200
     assert response.json()["status"] == "CANCELLED"
 
-
+# HAPPY TRANSITION — edit a draft (200, field saved)
 def test_edit_draft_returns_200():
     """Editing a draft returns 200 and saves the changed field."""
     create = client.post("/leave-requests", json={
@@ -270,7 +276,7 @@ def test_edit_draft_returns_200():
     assert response.json()["reason"] == "Updated reason"   # confirm the change actually saved
 
 ## GROUP-A
-
+# LIST — returns everything created
 def test_list_returns_created_requests():
     """GET /leave-requests returns 200 and lists everything created."""
     # fixture gives a fresh DB, so create exactly 2 and expect exactly 2 back
@@ -285,7 +291,7 @@ def test_list_returns_created_requests():
     data = response.json()        # this is a LIST of request dicts, not one object
     assert len(data) == 2
 
-
+# FILTER — by status
 def test_filter_by_status():
     """Filtering by status returns only requests with that status."""
     # one stays DRAFT...
@@ -309,7 +315,7 @@ def test_filter_by_status():
     for r in data:                         # and every returned item really is DRAFT
         assert r["status"] == "DRAFT"
 
-
+# FILTER — by employee
 def test_filter_by_employee():
     """Filtering by employee_id returns only that employee's requests."""
     for _ in range(2):
@@ -326,6 +332,7 @@ def test_filter_by_employee():
     assert len(res2.json()) == 0
 
 ## GROUP B
+# EDGE CASE — edit with bad dates (422)
 def test_edit_with_bad_dates_returns_422():
     """PATCHing a draft so the end date is before the start returns 422."""
     create = client.post("/leave-requests", json={
@@ -341,13 +348,13 @@ def test_edit_with_bad_dates_returns_422():
     })
     assert response.status_code == 422
 
-
+# EDGE CASE — action on a missing id (404)
 def test_action_on_missing_id_returns_404():
     """Acting on a request id that doesn't exist returns 404."""
     response = client.post("/leave-requests/999/submit")   # no request #999 exists
     assert response.status_code == 404
 
-
+# EDGE CASE — same-day request = 1 day
 def test_same_day_is_one_day():
     """A request where start and end are the same date counts as 1 day."""
     response = client.post("/leave-requests", json={
@@ -357,3 +364,42 @@ def test_same_day_is_one_day():
     })
     assert response.status_code == 201
     assert response.json()["number_of_days"] == 1   # inclusive count: one day = 1
+
+
+# PAGINATION-TEST
+# PAGINATION — limit caps the count
+def test_limit_caps_results():
+    """The limit param caps how many requests come back."""
+    for _ in range(3):
+        client.post("/leave-requests", json={
+            "employee_id": 1, "leave_type": "Vacation",
+            "start_date": "2026-07-10", "end_date": "2026-07-12",
+            "reason": "Trip",
+        })
+    response = client.get("/leave-requests", params={"limit": 2})
+    assert response.status_code == 200
+    assert len(response.json()) == 2      # 3 exist, but limit caps it at 2
+
+# PAGINATION — skip offsets from the start
+def test_skip_offsets_results():
+    """The skip param skips records from the start."""
+    for _ in range(3):
+        client.post("/leave-requests", json={
+            "employee_id": 1, "leave_type": "Vacation",
+            "start_date": "2026-07-10", "end_date": "2026-07-12",
+            "reason": "Trip",
+        })
+    response = client.get("/leave-requests", params={"skip": 2})
+    assert len(response.json()) == 1      # 3 total minus 2 skipped
+
+# PAGINATION — skip + limit page together
+def test_skip_and_limit_together():
+    """skip and limit work together to page through results."""
+    for _ in range(3):
+        client.post("/leave-requests", json={
+            "employee_id": 1, "leave_type": "Vacation",
+            "start_date": "2026-07-10", "end_date": "2026-07-12",
+            "reason": "Trip",
+        })
+    response = client.get("/leave-requests", params={"skip": 1, "limit": 1})
+    assert len(response.json()) == 1      # skip the first, then take only 1
