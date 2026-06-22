@@ -194,3 +194,69 @@ def test_edit_non_draft_returns_409():
     # editing is only allowed on DRAFT, so a PATCH now should be rejected
     response = client.patch(f"/leave-requests/{request_id}", json={"reason": "Changed reason"})
     assert response.status_code == 409
+
+def test_submit_draft_returns_200():
+    """Submitting a draft that has a reason returns 200 and status SUBMITTED."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-10", "end_date": "2026-07-12",
+        "reason": "Family trip",   # has a reason, so submit is allowed
+    })
+    request_id = create.json()["id"]
+    response = client.post(f"/leave-requests/{request_id}/submit")
+    assert response.status_code == 200
+    assert response.json()["status"] == "SUBMITTED"
+
+
+def test_approve_submitted_returns_200():
+    """Approving a submitted request returns 200 and status APPROVED."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-11-01", "end_date": "2026-11-03",  # November — clear of earlier approved leaves
+        "reason": "Approved leave",
+    })
+    request_id = create.json()["id"]
+    client.post(f"/leave-requests/{request_id}/submit")
+    response = client.post(f"/leave-requests/{request_id}/approve")
+    assert response.status_code == 200
+    assert response.json()["status"] == "APPROVED"
+
+
+def test_reject_submitted_returns_200():
+    """Rejecting a submitted request returns 200 and status REJECTED."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-20", "end_date": "2026-07-22",
+        "reason": "To reject",
+    })
+    request_id = create.json()["id"]
+    client.post(f"/leave-requests/{request_id}/submit")
+    response = client.post(f"/leave-requests/{request_id}/reject")
+    assert response.status_code == 200
+    assert response.json()["status"] == "REJECTED"
+
+
+def test_cancel_draft_returns_200():
+    """Cancelling a draft returns 200 and status CANCELLED."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-25", "end_date": "2026-07-27",
+        "reason": "To cancel",
+    })
+    request_id = create.json()["id"]
+    response = client.post(f"/leave-requests/{request_id}/cancel")
+    assert response.status_code == 200
+    assert response.json()["status"] == "CANCELLED"
+
+
+def test_edit_draft_returns_200():
+    """Editing a draft returns 200 and saves the changed field."""
+    create = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2026-07-28", "end_date": "2026-07-30",
+        "reason": "Original reason",
+    })
+    request_id = create.json()["id"]
+    response = client.patch(f"/leave-requests/{request_id}", json={"reason": "Updated reason"})
+    assert response.status_code == 200
+    assert response.json()["reason"] == "Updated reason"   # confirm the change actually saved
