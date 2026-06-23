@@ -50,7 +50,7 @@ class LeaveRequestOut(BaseModel):
     @property
     def number_of_days(self) -> int:
         # Span of the leave, measured from start_date to end_date.
-        return (self.end_date - self.start_date).days
+        return (self.end_date - self.start_date).days + 1 
 
     class Config:
         from_attributes = True
