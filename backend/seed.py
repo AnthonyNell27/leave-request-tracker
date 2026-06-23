@@ -9,6 +9,8 @@ employees = [
     Employee(name="Maria Santos"),
     Employee(name="Jose Reyes"),
     Employee(name="Carla Garcia"),
+    Employee(name="Diego Ramos"),
+    Employee(name="Liza Tan"),
 ]
 
 db.add_all(employees)

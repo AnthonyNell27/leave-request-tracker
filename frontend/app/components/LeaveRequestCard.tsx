@@ -24,7 +24,7 @@ const statusColors: Record<string, string> = {
 // (ASSUMPTION — verify these against the backend's main.py.)
 const actionsByStatus: Record<string, string[]> = {
   DRAFT: ["submit", "cancel"],
-  SUBMITTED: ["approve", "reject", "cancel"],
+  SUBMITTED: ["approve", "reject ", "cancel"],
   APPROVED: [],
   REJECTED: [], // terminal — no actions
   CANCELLED: [], // terminal — no actions

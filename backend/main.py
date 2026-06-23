@@ -171,7 +171,7 @@ def approve_leave_request(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Only submitted requests can be approved")
 
     # Overlap rule: no two APPROVED leaves for the same employee may share dates.
-    # Two ranges overlap when:  existing.start <= this.end  AND  this.start <= existing.end
+    # Two ranges overlap when:  existing.start < this.end  AND  this.start <= existing.end
     # Here LeaveRequest.* = the existing approved row (DB column);
     #      leave_request.* = the request being approved (Python object).
     conflict = (
@@ -179,7 +179,7 @@ def approve_leave_request(id: int, db: Session = Depends(get_db)):
         .filter(
             LeaveRequest.employee_id == leave_request.employee_id,
             LeaveRequest.status == LeaveStatus.APPROVED,
-            LeaveRequest.start_date <= leave_request.end_date,
+            LeaveRequest.start_date < leave_request.end_date,
             leave_request.start_date <= LeaveRequest.end_date,
             LeaveRequest.id != leave_request.id,  # defensive: never clash with self
         )
