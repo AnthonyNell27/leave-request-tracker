@@ -179,7 +179,7 @@ def approve_leave_request(id: int, db: Session = Depends(get_db)):
         .filter(
             LeaveRequest.employee_id == leave_request.employee_id,
             LeaveRequest.status == LeaveStatus.APPROVED,
-            LeaveRequest.start_date < leave_request.end_date,
+            LeaveRequest.start_date <= leave_request.end_date,
             leave_request.start_date <= LeaveRequest.end_date,
             LeaveRequest.id != leave_request.id,  # defensive: never clash with self
         )
