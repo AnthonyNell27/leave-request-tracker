@@ -55,7 +55,7 @@ export default function Home() {
     // if the backend says "no" (e.g. invalid action), show its message and stop
     if (!res.ok) {
       const error = await res.json();
-      alert(error.detail);
+      alert(getErrorMessage(error.detail));
       return;
     }
 
@@ -112,7 +112,7 @@ export default function Home() {
 
     if (!res.ok) {
       const error = await res.json();
-      alert(error.detail);
+      alert(getErrorMessage(error.detail));
       return;
     }
 
@@ -137,6 +137,16 @@ export default function Home() {
 
   // handy true/false flag: are we currently editing? used to switch text + lock the dropdown
   const isEditing = editingId !== null;
+
+  // The backend sends error.detail two ways: a plain string (409/404), or an
+  // array of error objects (422 validation). This turns either into one readable string.
+  function getErrorMessage(detail: unknown): string {
+    if (Array.isArray(detail)) {
+      // 422 shape: pull each error's .msg and stack them on separate lines
+      return detail.map((e) => e.msg).join("\n");
+    }
+    return String(detail);   // 409/404 shape: already a string, use as-is
+  }
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-8">
