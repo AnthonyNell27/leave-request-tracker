@@ -154,6 +154,33 @@ def test_overlapping_approval_returns_409():
     # B overlaps an already-APPROVED leave → the rule blocks it
     assert approve_b.status_code == 409   # 409 Conflict
 
+# BUSINESS RULE — boundary overlap: B ends exactly on A's start (409) [BUG-3 regression]
+def test_boundary_overlap_approval_returns_409():
+    """Approving a leave that ends exactly on an approved leave's start day returns 409."""
+    # --- Request A: approved, 04-10 .. 04-15 ---
+    a = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2027-04-10", "end_date": "2027-04-15",
+        "reason": "First leave",
+    })
+    a_id = a.json()["id"]
+    client.post(f"/leave-requests/{a_id}/submit")
+    approve_a = client.post(f"/leave-requests/{a_id}/approve")
+    assert approve_a.status_code == 200   # sanity: A is actually approved
+
+    # --- Request B: ends ON A's start date (04-10) — the exact boundary that BUG-3 missed ---
+    b = client.post("/leave-requests", json={
+        "employee_id": 1, "leave_type": "Vacation",
+        "start_date": "2027-04-06", "end_date": "2027-04-10",  # touches A's start, doesn't go past it
+        "reason": "Second leave",
+    })
+    b_id = b.json()["id"]
+    client.post(f"/leave-requests/{b_id}/submit")
+    approve_b = client.post(f"/leave-requests/{b_id}/approve")
+
+    # the single shared day (04-10) is still an overlap -> blocked
+    assert approve_b.status_code == 409
+
 # VALIDATION — submit without a reason (422)
 def test_submit_without_reason_returns_422():
     """Submitting a request that has no reason returns 422."""

@@ -49,10 +49,8 @@ class LeaveRequestOut(BaseModel):
     @computed_field      # include this derived value in the output JSON
     @property
     def number_of_days(self) -> int:
-        # Inclusive count: Jun 20 -> Jun 22 is 3 days, not 2.
-        # (end - start).days gives the GAP between the dates; +1 turns the
-        # gap into a count and fixes the off-by-one. Same-day leave = 1.
-        return (self.end_date - self.start_date).days + 1
+        # Span of the leave, measured from start_date to end_date.
+        return (self.end_date - self.start_date).days + 1 
 
     class Config:
         from_attributes = True
@@ -85,7 +83,7 @@ class LeaveRequestCreate(BaseModel):
         if self.end_date < self.start_date:
             raise ValueError("end_date cannot be before start_date")
         return self
-    
+
 
 class LeaveRequestUpdate(BaseModel):
     # PATCH = partial update: every field optional, client sends only
