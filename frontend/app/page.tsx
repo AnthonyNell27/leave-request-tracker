@@ -24,6 +24,10 @@ export default function Home() {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterEmployee, setFilterEmployee] = useState("");
 
+  // pagination: how many rows per page, and which page we're on (0-based)
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(0);
+
   // --- DATA LOADING: fetch = ask the backend for data, then store it in a state box. ---
   const loadEmployees = () => {
     fetch("http://localhost:8000/employees")
@@ -32,11 +36,13 @@ export default function Home() {
   };
 
   const loadRequests = () => {
-    // build the ?status=...&employee_id=... part from whatever filters are set.
+    // build the ?status=...&employee_id=...&skip=...&limit=... part from the current filters + page.
     // URLSearchParams handles the formatting/encoding for us.
     const params = new URLSearchParams();
     if (filterStatus) params.append("status", filterStatus);         // only add if a status is chosen
     if (filterEmployee) params.append("employee_id", filterEmployee); // only add if an employee is chosen
+    params.append("skip", String(page * PAGE_SIZE));  // skip past earlier pages to reach this one
+    params.append("limit", String(PAGE_SIZE));        // and ask for one page's worth
 
     fetch(`http://localhost:8000/leave-requests?${params.toString()}`)
       .then((res) => res.json())
@@ -125,11 +131,11 @@ export default function Home() {
     loadEmployees();
   }, []);
 
-  // (re)load requests on first open AND whenever a filter changes.
-  // listing the filters here makes this re-run with the new values.
+  // (re)load requests on first open AND whenever a filter OR the page changes.
+  // listing them here makes this re-run with the new values.
   useEffect(() => {
     loadRequests();
-  }, [filterStatus, filterEmployee]);
+  }, [filterStatus, filterEmployee, page]);
 
   // shared styling string so every input/select looks the same (write once, reuse)
   const fieldClass =
@@ -249,17 +255,16 @@ export default function Home() {
             >
               Cancel
             </button>
-            
           )}
         </div>
       </form>
 
-      {/* --- FILTERS: pick a value to narrow the list; changing one re-fetches automatically --- */}
+      {/* --- FILTERS: pick a value to narrow the list; changing one re-fetches and jumps to page 1 --- */}
       <div className="mb-4 flex flex-wrap gap-3">
-        {/* filter by status */}
+        {/* filter by status — also reset to the first page so we don't land on an empty page */}
         <select
           value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
+          onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
           className={fieldClass}
         >
           <option value="">All statuses</option>
@@ -273,7 +278,7 @@ export default function Home() {
         {/* filter by employee — reuses the employees list you already fetched */}
         <select
           value={filterEmployee}
-          onChange={(e) => setFilterEmployee(e.target.value)}
+          onChange={(e) => { setFilterEmployee(e.target.value); setPage(0); }}
           className={fieldClass}
         >
           <option value="">All employees</option>
@@ -295,6 +300,29 @@ export default function Home() {
             onEdit={startEdit}    // pass the edit handler down
           />
         ))}
+      </div>
+
+      {/* --- PAGINATION: step between pages. Buttons disable at the ends. --- */}
+      <div className="mt-4 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setPage((p) => p - 1)}   // go back one page
+          disabled={page === 0}                    // nothing before the first page
+          className="rounded-md border border-neutral-300 px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          Previous
+        </button>
+
+        <span className="text-sm text-neutral-500">Page {page + 1}</span>
+
+        <button
+          type="button"
+          onClick={() => setPage((p) => p + 1)}    // go forward one page
+          disabled={requests.length < PAGE_SIZE}   // a non-full page means there's no page after it
+          className="rounded-md border border-neutral-300 px-3 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+        >
+          Next
+        </button>
       </div>
     </main>
   );
